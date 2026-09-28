@@ -1,0 +1,297 @@
+/* ============================================================
+   WeTab Lite 全局样式
+   唯一的样式系统：Tailwind v4 + shadcn 令牌。
+   主题由 html[data-theme="light"|"dark"] 驱动（见 lib/hooks.ts useTheme）。
+   ============================================================ */
+
+/* source() 显式指定扫描根目录：本仓库没有 .git，Tailwind 的自动检测会退化成只看 CWD */
+@import "tailwindcss" source("../");
+@import "tw-animate-css";
+
+/* 排除构建产物，避免把打包后的类名再扫一遍 */
+@source not "../.output";
+
+/* shadcn 默认认 .dark 类，这里改成认 data-theme 属性（只影响 dark: 工具类） */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+}
+
+/* 注意：这必须写成属性选择器而不是 .dark——@custom-variant 只管 dark: 工具类，
+   管不到这段普通 CSS 令牌块 */
+[data-theme="dark"] {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.269 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.371 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.556 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* iOS 观感：优先系统字体（SF Pro / PingFang），中文不会退化成宋体 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Helvetica Neue", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* 系统控件那种「起步快、收尾慢」的弹性缓动，用于侧栏展开/收起 */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 「使用系统默认字体」：换掉上面那套 SF Pro / PingFang 优先级（见 lib/hooks.ts 的 useTheme） */
+  html[data-font='system'] {
+    --font-sans: system-ui, sans-serif;
+  }
+
+  /* 新标签页是整块画布，不要出滚动条 */
+  body.overflow-hidden-root {
+    overflow: hidden;
+  }
+}
+
+/* 抽屉/浮层的细滚动条 */
+@utility thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, currentColor 30%, transparent) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, currentColor 28%, transparent);
+    border-radius: 999px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* iOS 那种覆盖式滚动条：直接藏掉轨道 */
+@utility no-scrollbar {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* 磁贴标题在背景图上要看得清 */
+@utility tile-label {
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+}
+
+/* 拖拽落位框：起点空槽、可合并的目标、末尾「+」共用这一种虚线，
+   颜色跟着 currentColor 走——壁纸上是白，浅色浮层里自动变深。 */
+@utility drop-frame {
+  border: 1px dashed color-mix(in srgb, currentColor 55%, transparent);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+/* ============================================================
+   动态壁纸（壁纸面板的「动态壁纸」标签页）
+   三团高斯模糊光斑在天空渐变上做慢速漂移，纯 CSS，零依赖零流量。
+   ============================================================ */
+
+@keyframes wetab-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  35% {
+    transform: translate3d(7vw, -5vh, 0) scale(1.18);
+  }
+  70% {
+    transform: translate3d(-6vw, 6vh, 0) scale(0.92);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.wetab-blob {
+  animation: wetab-drift var(--wetab-duration, 22s) ease-in-out infinite;
+  will-change: transform;
+}
+
+/* 系统开了「减少动态效果」就退化成静态渐变 */
+@media (prefers-reduced-motion: reduce) {
+  .wetab-blob {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   编辑主页：磁贴小幅抖动（iOS 长按主屏那一下），同时在右上角出现 ×
+   —— 见 components/grid/TileGrid.tsx 的 editMode
+   ============================================================ */
+
+@keyframes wetab-jiggle {
+  from {
+    transform: rotate(-1.1deg) scale(0.985);
+  }
+  to {
+    transform: rotate(1.1deg) scale(1.015);
+  }
+}
+
+.editing-tile {
+  animation: wetab-jiggle 0.34s ease-in-out infinite alternate;
+}
+
+/* 系统开了「减少动态效果」就不抖，只保留 × 和点击拦截 */
+@media (prefers-reduced-motion: reduce) {
+  .editing-tile {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   拖拽交互：排序落点 + 停留合并（见 components/grid/TileGrid.tsx）
+   落位后的滑动补间在 lib/flip.ts，用 Web Animations API 现算。
+   ============================================================ */
+
+/* 落点指示线：松手后磁贴就插到这条线的位置 */
+@keyframes wetab-slot-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* 横向落点：文件夹浮层那种窄格子，竖着弹会被格子宽度吃掉 */
+@keyframes wetab-slot-in-x {
+  from {
+    opacity: 0;
+    transform: scaleX(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.wetab-slot {
+  transform-origin: center;
+  animation: wetab-slot-in 0.16s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.wetab-slot-x {
+  animation-name: wetab-slot-in-x;
+}
+
+/* 停留计时框：进到这个磁贴上就亮一圈虚线（和 drop-frame 同一个语言），
+   倒计时不再靠描边绕圈，而是靠框内逐渐填满白色；填满 = 再松手就合并。
+   时长由 --wetab-dwell 传入（链接 500ms / 文件夹 320ms）。 */
+@keyframes wetab-dwell-fill {
+  from {
+    fill-opacity: 0;
+  }
+  to {
+    fill-opacity: 0.14;
+  }
+}
+
+.wetab-dwell-ring {
+  stroke: rgb(255 255 255 / 60%);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  fill: #fff;
+  fill-opacity: 0;
+  animation: wetab-dwell-fill var(--wetab-dwell, 500ms) linear forwards;
+}
+
+/* 停到位：虚线提亮加粗、填充定格，同时磁贴自己会高起来 */
+.wetab-dwell-ring[data-armed='true'] {
+  stroke: #fff;
+  stroke-width: 2;
+  fill-opacity: 0.22;
+  animation: none;
+}
+
+/* 落点线是纯装饰，减少动效下不弹；进度环属于交互反馈所以保留，
+   落位补间则在 lib/flip.ts 里自己跳过 */
+@media (prefers-reduced-motion: reduce) {
+  .wetab-slot {
+    animation: none;
+  }
+}
