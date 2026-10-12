@@ -17,10 +17,14 @@ import {
   Search,
   Settings,
   Shuffle,
+  Sparkles,
 } from 'lucide-react';
 
 import AddTileDrawer from '@/components/drawer/AddTileDrawer';
+import BatchPanel from '@/components/BatchPanel';
+import BottomBar from '@/components/BottomBar';
 import ContextMenu, { type MenuItem } from '@/components/ui/context-menu';
+import FrequentBar from '@/components/FrequentBar';
 import IconSearch from '@/components/IconSearch';
 import SearchBar from '@/components/SearchBar';
 import {
@@ -33,15 +37,22 @@ import TileGrid, { type DropSide } from '@/components/grid/TileGrid';
 import WallpaperLayer from '@/components/WallpaperLayer';
 import {
   addChildToFolder,
+  addFrequent,
+  autoArrange,
   collectIconKeys,
   currentPage,
   findTile,
   foldIntoFolder,
+  FREQUENT_MAX,
   listLinkIcons,
   listPages,
+  moveFrequent,
+  moveTilesToPage,
   moveTile,
   moveTileToPage,
   releaseFolder,
+  removeFrequent,
+  removeTiles,
   removeTile,
   reorderChild,
   setActivePage,
@@ -54,6 +65,7 @@ import { cn, isEditableTarget } from '@/lib/utils';
 import type { BackgroundStyle, LinkTile, Tile, WidgetSize } from '@/lib/types';
 import {
   downloadWallpaper,
+  nextRotateWallpaper,
   pushRecentWallpaper,
   randomPresetWallpaper,
   wallpaperLabel,
@@ -90,6 +102,11 @@ export default function App() {
   /** 页面级「编辑主页」模式 */
   const [homeEdit, setHomeEdit] = useState(false);
   const [iconSearch, setIconSearch] = useState(false);
+  /** 常访栏：编辑模式 + 「添加常访图标」的挑选浮层 */
+  const [frequentEdit, setFrequentEdit] = useState(false);
+  const [frequentPick, setFrequentPick] = useState(false);
+  /** 批量操作面板（底部栏 / 右键菜单进入） */
+  const [batchOpen, setBatchOpen] = useState(false);
   /** 内容区空白处右键弹的菜单 */
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number } | null>(null);
   const [note, setNote] = useState<Note | null>(null);
@@ -356,6 +373,70 @@ export default function App() {
     }
   };
 
+  /* 自动切换壁纸：开启后按间隔换一张，来源可选「系统精选」或「最近使用」 */
+  useEffect(() => {
+    if (!config.wallpaperRotate) return;
+    const ms = Math.max(1, Math.round(config.wallpaperRotateMinutes)) * 60_000;
+    const id = window.setInterval(() => {
+      void nextRotateWallpaper(config.background, config.wallpaperRotateSource).then(
+        (next) => {
+          if (next) applyWallpaper(next);
+        },
+      );
+    }, ms);
+    return () => window.clearInterval(id);
+  }, [
+    config.wallpaperRotate,
+    config.wallpaperRotateMinutes,
+    config.wallpaperRotateSource,
+    config.background,
+  ]);
+
+  /* ---------- 一键整理布局 / 批量操作 ---------- */
+
+  const arrangeLayout = () => {
+    if (!nav) return;
+    const next = autoArrange(nav, config.layoutPriority);
+    if (next === nav) {
+      show('本页顺序已经整理好了');
+      return;
+    }
+    updateNav(() => next);
+    show(
+      config.layoutPriority === 'size'
+        ? '已按「大小优先」整理本页布局'
+        : '已按「布局优先」整理本页布局',
+    );
+  };
+
+  const batchRemove = (ids: string[]) => {
+    updateNav((n) => removeTiles(n, ids));
+    show('已删除 ' + ids.length + ' 个磁贴');
+  };
+
+  const batchMove = (ids: string[], groupId: string, pageId: string) => {
+    if (!nav) return;
+    const movable = ids.filter((id) => {
+      const hit = findTile(nav, id);
+      return hit && !(hit.groupId === groupId && hit.pageId === pageId);
+    });
+    updateNav((n) => moveTilesToPage(n, movable, groupId, pageId).nav);
+    show('已移动 ' + movable.length + ' 个磁贴');
+  };
+
+  const batchAddFrequent = (ids: string[]) => {
+    const links =
+      page?.tiles.filter(
+        (t): t is LinkTile => t.type === 'link' && ids.includes(t.id),
+      ) ?? [];
+    if (links.length === 0) {
+      show('选的磁贴里没有链接，只有链接能加进常访栏');
+      return;
+    }
+    updateNav((n) => links.reduce((acc, l) => addFrequent(acc, l), n));
+    show('已把 ' + links.length + ' 个图标加入常访栏');
+  };
+
   /* ---------- 内容区右键菜单 ---------- */
 
   const onPageContextMenu = (e: React.MouseEvent) => {
@@ -410,6 +491,64 @@ export default function App() {
       label: '搜索图标',
       icon: <Search className="size-4" />,
       onSelect: () => setIconSearch(true),
+    },
+    /* 常访栏：显示 / 隐藏、编辑、往里加图标 */
+    {
+      id: 'toggle-frequent',
+      label: config.showFrequent ? '隐藏常访栏' : '显示常访栏',
+      separatorBefore: true,
+      icon: <LayoutGrid className="size-4" />,
+      onSelect: () => {
+        update({ showFrequent: !config.showFrequent });
+        show(config.showFrequent ? '已隐藏常访栏' : '已显示常访栏');
+      },
+    },
+    {
+      id: 'edit-frequent',
+      label: frequentEdit ? '完成编辑常访栏' : '编辑常访栏',
+      icon: frequentEdit ? <Check className="size-4" /> : <Pencil className="size-4" />,
+      onSelect: () => setFrequentEdit((v) => !v),
+    },
+    {
+      id: 'add-frequent',
+      label: '添加常访图标',
+      icon: <Plus className="size-4" />,
+      onSelect: () => setFrequentPick(true),
+    },
+    {
+      id: 'pin-frequent',
+      label: config.frequentInSidebar ? '从侧边栏隐藏常访' : '固定常访到侧边栏',
+      icon: <Check className="size-4" />,
+      onSelect: () => {
+        update({ frequentInSidebar: !config.frequentInSidebar });
+        show(config.frequentInSidebar ? '已从侧边栏隐藏常访' : '已固定到侧边栏');
+      },
+    },
+    /* 底部栏与批量操作 */
+    {
+      id: 'arrange-layout',
+      label:
+        config.layoutPriority === 'size'
+          ? '一键整理布局（大小优先）'
+          : '一键整理布局（布局优先）',
+      separatorBefore: true,
+      icon: <Sparkles className="size-4" />,
+      onSelect: arrangeLayout,
+    },
+    {
+      id: 'batch',
+      label: '批量操作',
+      icon: <LayoutGrid className="size-4" />,
+      onSelect: () => setBatchOpen(true),
+    },
+    {
+      id: 'toggle-bottombar',
+      label: config.showBottomBar ? '隐藏底部栏' : '显示底部栏',
+      icon: <LayoutGrid className="size-4" />,
+      onSelect: () => {
+        update({ showBottomBar: !config.showBottomBar });
+        show(config.showBottomBar ? '已隐藏底部栏' : '已显示底部栏');
+      },
     },
     // 侧栏隐藏时页面上没有齿轮，设置入口只能挂在这份菜单里
     ...(config.sidebarVisibility === 'hidden'
@@ -472,6 +611,7 @@ export default function App() {
               }
               onOpenSettings={() => setSettingsOpen(true)}
               initial={(config.userName || 'W').slice(0, 1).toUpperCase()}
+              frequent={config.frequentInSidebar ? (nav.frequent ?? []) : []}
             />
           </div>
         )}
@@ -500,6 +640,22 @@ export default function App() {
               />
             )}
           </div>
+
+          {/* 常访栏：搜索框下面那条常用网站（上游 F08） */}
+          {config.showFrequent && (
+            <FrequentBar
+              items={(nav?.frequent ?? []).slice(0, FREQUENT_MAX)}
+              editing={frequentEdit}
+              hideLabel={config.hideTileLabel}
+              maxWidth={config.iconAreaWidth}
+              onOpen={(item) => {
+                if (config.tileOpenMode === 'selfTab') window.location.href = item.url;
+                else window.open(item.url, '_blank', 'noopener');
+              }}
+              onRemove={(id) => updateNav((n) => removeFrequent(n, id))}
+              onMove={(id, d) => updateNav((n) => moveFrequent(n, id, d))}
+            />
+          )}
 
           {/* 主内容区永远只有竖向滚动；滚到边界继续滚 = 翻页 */}
           <div
@@ -546,6 +702,17 @@ export default function App() {
               )}
             </div>
           </div>
+
+          {/* 底部控制栏：布局优先 / 大小优先 + 一键整理 + 两个快捷入口 */}
+          {config.showBottomBar && (
+            <BottomBar
+              mode={config.layoutPriority}
+              onModeChange={(m) => update({ layoutPriority: m })}
+              onArrange={arrangeLayout}
+              onAddIcon={() => openDrawer({ createKind: 'link' })}
+              onAddWidget={() => openDrawer({ createKind: 'widget' })}
+            />
+          )}
         </main>
       </div>
 
@@ -572,6 +739,36 @@ export default function App() {
         open={iconSearch}
         onOpenChange={setIconSearch}
         entries={iconEntries}
+      />
+
+      {/* 同一个浮层换个身份：挑一个图标加进常访栏 */}
+      <IconSearch
+        open={frequentPick}
+        onOpenChange={setFrequentPick}
+        entries={iconEntries}
+        onPick={(e) => {
+          updateNav((n) =>
+            addFrequent(n, {
+              id: uid(),
+              type: 'link',
+              title: e.title,
+              url: e.url,
+              icon: e.icon,
+            }),
+          );
+          show('已把「' + e.title + '」加入常访栏');
+        }}
+      />
+
+      <BatchPanel
+        open={batchOpen}
+        onOpenChange={setBatchOpen}
+        tiles={page?.tiles ?? []}
+        pages={pageOptions}
+        currentPageId={page?.id ?? ''}
+        onRemove={batchRemove}
+        onMove={batchMove}
+        onAddFrequent={batchAddFrequent}
       />
 
       {/* 设置浮层贴在侧栏一侧，别让胶囊被盖住 */}

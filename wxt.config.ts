@@ -26,7 +26,11 @@ export default defineConfig({
     // favicon：用 chrome.runtime.getURL('/_favicon/…') 取站点图标，离线可用且不需要 host_permissions
     permissions: ['storage', 'activeTab', 'contextMenus', 'sidePanel', 'favicon'],
     // 书签这种重权限按需申请（首次使用时弹窗请求）
-    optional_permissions: ['bookmarks'],
+    // system.memory 给「电池 / 系统」小组件用（桌面版多数拿不到，拿不到会降级提示）
+    // history 给「历史记录」小组件用
+    optional_permissions: ['bookmarks', 'system.memory', 'history'],
+    // 热搜/资讯的数据源由用户自己填，只能按域名临时申请（在组件里点「授权域名」）
+    optional_host_permissions: ['*://*/*'],
     // 天气数据通过 background fetch，避免 CORS
     host_permissions: [
       'https://api.open-meteo.com/*',

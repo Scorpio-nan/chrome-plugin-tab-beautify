@@ -37,6 +37,12 @@ export interface TodoItem {
   id: string;
   text: string;
   done: boolean;
+  /** 分组名，空 = 默认分组（上游「分组 / 删除分组将同时删除分组下的所有待办事项」） */
+  group?: string;
+  /** 置顶 */
+  pinned?: boolean;
+  /** 优先级：0 无 · 1 低 · 2 中 · 3 高 */
+  priority?: number;
 }
 
 const TODO_KEY = 'todos';
@@ -112,19 +118,47 @@ export function uid(): string {
 
 /* ---------- 数据导出 / 导入 ---------- */
 
+/** 备份文件格式：带版本号与导出时间，导入时好做校验 */
+export interface BackupFile {
+  version: number;
+  exportedAt: string;
+  sync: Record<string, unknown>;
+  local: Record<string, unknown>;
+}
+
 export async function exportAll(): Promise<string> {
   const [sync, local] = await Promise.all([
     browser.storage.sync.get(null),
     browser.storage.local.get(null),
   ]);
-  return JSON.stringify({ version: 1, sync, local }, null, 2);
+  const payload: BackupFile = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    sync,
+    local,
+  };
+  return JSON.stringify(payload, null, 2);
 }
 
-export async function importAll(json: string): Promise<void> {
-  const parsed = JSON.parse(json) as {
-    sync?: Record<string, unknown>;
-    local?: Record<string, unknown>;
+/** 导入并返回写入了多少条 key（调用方拿去做「导入完成」提示） */
+export async function importAll(
+  json: string,
+): Promise<{ sync: number; local: number }> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new Error('文件不是有效的 JSON');
+  }
+  const p = (parsed ?? {}) as Partial<BackupFile>;
+  const sync = p.sync && typeof p.sync === 'object' ? p.sync : null;
+  const local = p.local && typeof p.local === 'object' ? p.local : null;
+  if (!sync && !local) throw new Error('不是 WeTab Lite 的备份文件');
+
+  if (sync) await browser.storage.sync.set(sync);
+  if (local) await browser.storage.local.set(local);
+  return {
+    sync: sync ? Object.keys(sync).length : 0,
+    local: local ? Object.keys(local).length : 0,
   };
-  if (parsed.sync) await browser.storage.sync.set(parsed.sync);
-  if (parsed.local) await browser.storage.local.set(parsed.local);
 }

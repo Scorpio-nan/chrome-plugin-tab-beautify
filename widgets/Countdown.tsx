@@ -1,21 +1,40 @@
-// 倒计时小组件：到某个日期还剩多少天
+// 倒计时小组件：到某个日期还剩多少天。
+// 支持「不重复 / 每年 / 每月」三种（上游 F30 的「不重复 / 每年 / 每月」）。
 interface Props {
   title?: string;
   /** YYYY-MM-DD */
   date?: string;
+  /** 重复方式：none 一次性 · yearly 每年 · monthly 每月 */
+  repeat?: string;
 }
 
-function daysUntil(date: string) {
+function daysUntil(date: string, repeat = 'none') {
   // 按天算，避开时分秒带来的 ±1 误差
   const target = new Date(`${date}T00:00:00`);
   if (Number.isNaN(target.getTime())) return null;
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (repeat === 'yearly') {
+    let next = new Date(now.getFullYear(), target.getMonth(), target.getDate());
+    if (next.getTime() < today.getTime()) {
+      next = new Date(now.getFullYear() + 1, target.getMonth(), target.getDate());
+    }
+    return Math.round((next.getTime() - today.getTime()) / 86400000);
+  }
+  if (repeat === 'monthly') {
+    const day = target.getDate();
+    let next = new Date(now.getFullYear(), now.getMonth(), day);
+    if (next.getTime() < today.getTime()) {
+      next = new Date(now.getFullYear(), now.getMonth() + 1, day);
+    }
+    return Math.round((next.getTime() - today.getTime()) / 86400000);
+  }
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
 
-export default function Countdown({ title = '倒计时', date }: Props) {
-  const days = date ? daysUntil(date) : null;
+export default function Countdown({ title = '倒计时', date, repeat = 'none' }: Props) {
+  const days = date ? daysUntil(date, repeat) : null;
 
   if (days === null) {
     return (
@@ -39,7 +58,15 @@ export default function Countdown({ title = '倒计时', date }: Props) {
         {Math.abs(days)}
       </span>
       <span className="text-[10px] text-muted-foreground">
-        {passed ? '天前' : days === 0 ? '就是今天' : '天后'}
+        {days === 0
+          ? '就是今天'
+          : passed
+            ? '天前'
+            : repeat === 'yearly'
+              ? '天后 · 每年'
+              : repeat === 'monthly'
+                ? '天后 · 每月'
+                : '天后'}
       </span>
       <span className="text-[10px] text-muted-foreground tabular-nums">{date}</span>
     </div>

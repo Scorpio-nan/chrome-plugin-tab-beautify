@@ -80,6 +80,11 @@ export interface NavState {
   activeGroupId: string;
   /** 每个分组各自记住停在第几页 */
   activePageByGroup: Record<string, string>;
+  /**
+   * 常访栏：搜索框下面那条常用网站。
+   * 可选字段——老数据里没有，读盘时由 ensureFrequent() 用树里的链接补上。
+   */
+  frequent?: LinkTile[];
 }
 
 /* ---------- 小组件 ---------- */
@@ -91,6 +96,16 @@ export type WidgetId =
   | 'notes'
   | 'bookmarks'
   | 'calendar'
+  | 'almanac'
+  | 'system'
+  | 'converter'
+  | 'calculator'
+  | 'anniversary'
+  | 'pomodoro'
+  | 'water'
+  | 'history'
+  | 'trending'
+  | 'mindmap'
   | 'countdown'
   | 'quote';
 
@@ -119,6 +134,8 @@ export type SidebarVisibility = 'always' | 'scroll' | 'hidden';
 export type ScreenSide = 'left' | 'right';
 export type OpenMode = 'newTab' | 'selfTab';
 export type TileSize = 'sm' | 'md' | 'lg';
+/** 自动切换壁纸的来源：系统精选 / 最近使用 */
+export type WallpaperRotateSource = 'presets' | 'recent';
 
 export interface UserConfig {
   theme: ThemeMode;
@@ -145,6 +162,14 @@ export interface UserConfig {
   hideAddTile: boolean;
   /** 隐藏图标名称，只留方块 */
   hideTileLabel: boolean;
+  /** 显示搜索框下面的「常访栏」 */
+  showFrequent: boolean;
+  /** 把常访栏固定到侧边栏（上游「固定到侧边栏 / 从侧边栏隐藏」） */
+  frequentInSidebar: boolean;
+  /** 显示内容区底部的控制栏（上游「底部栏」） */
+  showBottomBar: boolean;
+  /** 一键整理布局的排序策略：布局优先 / 大小优先 */
+  layoutPriority: 'layout' | 'size';
   /** 滚到内容区上下边界继续滚 = 翻到上一页 / 下一页 */
   scrollPaging: boolean;
 
@@ -159,6 +184,12 @@ export interface UserConfig {
   iconAreaWidth: number;
   /** 锁死最大宽度（关闭则随窗口拉伸） */
   lockMaxWidth: boolean;
+  /** 自动切换壁纸（上游「自动切换壁纸」） */
+  wallpaperRotate: boolean;
+  /** 自动切换间隔，分钟 */
+  wallpaperRotateMinutes: number;
+  /** 自动切换的来源 */
+  wallpaperRotateSource: WallpaperRotateSource;
 
   /* 搜索框 */
   showSearch: boolean;
@@ -199,6 +230,10 @@ export const DEFAULT_CONFIG: UserConfig = {
   tileSize: 'md',
   hideAddTile: false,
   hideTileLabel: false,
+  showFrequent: true,
+  frequentInSidebar: false,
+  showBottomBar: true,
+  layoutPriority: 'layout',
   scrollPaging: true,
   overlay: 0.28,
   blur: 0,
@@ -207,6 +242,10 @@ export const DEFAULT_CONFIG: UserConfig = {
   mediaBaseUrl: 'http://127.0.0.1:4321',
   iconAreaWidth: 1280,
   lockMaxWidth: true,
+  // 默认关闭：不动它就和原来的「手动换壁纸」完全一致
+  wallpaperRotate: false,
+  wallpaperRotateMinutes: 30,
+  wallpaperRotateSource: 'presets',
   showSearch: true,
   searchOpacity: 1,
   searchWidth: 59,

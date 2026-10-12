@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useConfig } from '@/lib/hooks';
+import { CHANGELOG } from '@/lib/changelog';
 import { ENGINE_BADGE, ENGINE_COLOR, SEARCH_ENGINES } from '@/lib/search';
 import { exportAll, importAll } from '@/lib/storage';
 import type {
@@ -474,6 +475,21 @@ export function GeneralPane() {
       </Section>
 
       <Section title="主页" hint="问候语与天气">
+        <Toggle
+          label="显示常访栏"
+          checked={config.showFrequent}
+          onChange={(v) => update({ showFrequent: v })}
+        />
+        <Toggle
+          label="固定常访到侧边栏"
+          checked={config.frequentInSidebar}
+          onChange={(v) => update({ frequentInSidebar: v })}
+        />
+        <Toggle
+          label="显示底部栏"
+          checked={config.showBottomBar}
+          onChange={(v) => update({ showBottomBar: v })}
+        />
         <div className="flex gap-2">
           <Input
             placeholder="天气城市，如：上海"
@@ -604,24 +620,34 @@ export function DataPane() {
   const [dataMsg, setDataMsg] = useState('');
 
   const doExport = async () => {
-    const json = await exportAll();
-    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `wetab-lite-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setDataMsg('已导出备份');
+    try {
+      const json = await exportAll();
+      const url = URL.createObjectURL(
+        new Blob([json], { type: 'application/json' }),
+      );
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wetab-lite-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setDataMsg('备份导出完成（配置 + 导航树 + 图标 + 待办便签）');
+    } catch (e) {
+      setDataMsg('导出失败：' + (e instanceof Error ? e.message : '未知错误'));
+    }
   };
 
   const doImport = async (file?: File) => {
     if (!file) return;
     try {
-      await importAll(await file.text());
-      setDataMsg('导入成功，正在刷新…');
+      const r = await importAll(await file.text());
+      setDataMsg(
+        `导入完成：配置 ${r.sync} 项、本地数据 ${r.local} 项，正在刷新…`,
+      );
       setTimeout(() => location.reload(), 600);
-    } catch {
-      setDataMsg('导入失败：不是有效的备份文件');
+    } catch (e) {
+      setDataMsg(
+        '导入失败：' + (e instanceof Error ? e.message : '不是有效的备份文件'),
+      );
     }
   };
 
@@ -710,6 +736,27 @@ export function AboutPane() {
           WXT + React + TypeScript + Tailwind v4 + Radix（shadcn 风格组件）。
           壁纸与图标全部本地生成或按需抓取，无第三方统计。
         </p>
+      </Section>
+
+      {/* 上游是独立的 update 页面，这里收进「关于」 */}
+      <Section title="更新日志">
+        <div className="flex flex-col gap-3">
+          {CHANGELOG.map((e) => (
+            <div key={e.version} className="flex flex-col gap-1">
+              <p className="text-sm font-medium text-foreground">
+                V{e.version}
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  {e.date}
+                </span>
+              </p>
+              <ul className="flex list-disc flex-col gap-0.5 pl-4 text-xs leading-relaxed text-muted-foreground">
+                {e.items.map((it) => (
+                  <li key={it}>{it}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       </Section>
     </div>
   );

@@ -10,7 +10,7 @@ import {
   dynamicWallpaperLabel,
 } from './dynamic-wallpapers';
 import { getBgImage } from './storage';
-import type { BackgroundStyle } from './types';
+import type { BackgroundStyle, WallpaperRotateSource } from './types';
 
 /* ---------- 精选图片 ---------- */
 
@@ -237,6 +237,21 @@ export function randomPresetWallpaper(current: BackgroundStyle): WallpaperRef {
   const rest = pool.filter((x) => !sameStyle(x, current));
   const list = rest.length > 0 ? rest : pool;
   return list[Math.floor(Math.random() * list.length)];
+}
+
+/**
+ * 自动切换壁纸用的下一张。
+ *   presets → 和「随机壁纸」同一套系统预设
+ *   recent  → 只在最近使用过的壁纸里轮换；没有别的记录时返回 null（保持不动）
+ */
+export async function nextRotateWallpaper(
+  current: BackgroundStyle,
+  source: WallpaperRotateSource,
+): Promise<WallpaperRef | null> {
+  if (source !== 'recent') return randomPresetWallpaper(current);
+  const rest = (await getRecentWallpapers()).filter((r) => !sameStyle(r, current));
+  if (rest.length === 0) return null;
+  return rest[Math.floor(Math.random() * rest.length)];
 }
 
 /** 只认顶层逗号——括号里的（rgba(0, 0, 0, .5)）不能拆 */

@@ -1,12 +1,36 @@
 // 天气模块：页面只通过消息请求 background 拉数据（绕 CORS + 自带缓存）
 import { browser } from 'wxt/browser';
 
+export interface WeatherHour {
+  /** ISO 时间，如 2026-10-12T14:00 */
+  time: string;
+  temp: number;
+  code: number;
+}
+
+export interface WeatherDay {
+  /** YYYY-MM-DD */
+  date: string;
+  min: number;
+  max: number;
+  code: number;
+}
+
 export interface WeatherData {
   temp: number; // °C
   windSpeed: number; // km/h
   code: number; // WMO weather code
   isDay: boolean;
   updatedAt: number;
+  /* 下面这些是后来补的字段：老缓存里没有，读的时候按可选处理 */
+  humidity?: number; // 相对湿度 %
+  precipitation?: number; // 当前降水量 mm
+  pressure?: number; // 海平面气压 hPa
+  apparent?: number; // 体感温度 °C
+  hours?: WeatherHour[]; // 未来 24 小时
+  days?: WeatherDay[]; // 未来 7 天
+  sunrise?: string; // 日出 HH:MM
+  sunset?: string; // 日落 HH:MM
 }
 
 /** 结果缓存在 storage.local 里，20 分钟内直接返回，避免每次开新标签都请求 */

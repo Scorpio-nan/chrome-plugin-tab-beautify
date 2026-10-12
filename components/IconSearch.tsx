@@ -19,6 +19,11 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   entries: IconEntry[];
+  /**
+   * 传了就是「挑一个」模式（常访栏编辑用）：点击不打开网址，交给调用方处理，
+   * 标题与说明也跟着换，避免用户以为点了会跳转。
+   */
+  onPick?: (entry: IconEntry) => void;
 }
 
 interface Section {
@@ -27,7 +32,7 @@ interface Section {
   items: IconEntry[];
 }
 
-export default function IconSearch({ open, onOpenChange, entries }: Props) {
+export default function IconSearch({ open, onOpenChange, entries, onPick }: Props) {
   const [query, setQuery] = useState('');
 
   /* 每次重新打开都回到「显示全部」，别留着上次的关键词 */
@@ -61,9 +66,10 @@ export default function IconSearch({ open, onOpenChange, entries }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[min(92vw,46rem)]">
         <DialogHeader>
-          <DialogTitle>搜索图标</DialogTitle>
+          <DialogTitle>{onPick ? '添加常访图标' : '搜索图标'}</DialogTitle>
           <DialogDescription>
-            共 {entries.length} 个图标 · 输入名称或网址过滤，点击直接打开
+            共 {entries.length} 个图标 · 输入名称或网址过滤，
+            {onPick ? '点击加进常访栏' : '点击直接打开'}
           </DialogDescription>
         </DialogHeader>
 
@@ -111,6 +117,10 @@ export default function IconSearch({ open, onOpenChange, entries }: Props) {
                           : e.url
                       }
                       onClick={() => {
+                        if (onPick) {
+                          onPick(e);
+                          return;
+                        }
                         window.open(e.url, '_blank', 'noopener');
                         onOpenChange(false);
                       }}

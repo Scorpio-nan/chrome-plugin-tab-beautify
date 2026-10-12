@@ -1,7 +1,8 @@
-// 日历小组件：纯 JS 月历，可翻月
+// 日历小组件：月视图 + 农历（上游 F18）。农历/节气/节日走 lib/almanac.ts。
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
+import { getAlmanac, getDayBadge } from '@/lib/almanac';
 import { cn } from '@/lib/utils';
 
 const WEEK = ['一', '二', '三', '四', '五', '六', '日'];
@@ -25,6 +26,7 @@ export default function Calendar() {
   );
 
   const cells = buildMonth(cursor.getFullYear(), cursor.getMonth());
+  const almanac = getAlmanac(cursor);
   const isThisMonth =
     cursor.getFullYear() === today.getFullYear() &&
     cursor.getMonth() === today.getMonth();
@@ -35,8 +37,13 @@ export default function Calendar() {
   return (
     <div className="flex h-full w-full flex-col gap-1 px-1.5 py-1 text-foreground">
       <div className="flex shrink-0 items-center justify-between px-0.5">
-        <span className="text-[11px] font-medium tabular-nums">
-          {cursor.getFullYear()} 年 {cursor.getMonth() + 1} 月
+        <span className="flex min-w-0 flex-col">
+          <span className="text-[11px] font-medium tabular-nums">
+            {cursor.getFullYear()} 年 {cursor.getMonth() + 1} 月
+          </span>
+          <span className="truncate text-[9px] text-muted-foreground">
+            {almanac.ganZhi.year}年 · 属{almanac.zodiac}
+          </span>
         </span>
         <span className="flex items-center gap-0.5">
           <button
@@ -64,22 +71,36 @@ export default function Calendar() {
         ))}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-7 gap-px text-center text-[10px] tabular-nums">
-        {cells.map((d, i) => (
-          <span
-            key={i}
-            className={cn(
-              'flex items-center justify-center rounded',
-              d === null && 'opacity-0',
-              d !== null &&
-                isThisMonth &&
-                d === today.getDate() &&
-                'bg-primary font-semibold text-primary-foreground',
-            )}
-          >
-            {d}
-          </span>
-        ))}
+      <div className="grid min-h-0 flex-1 grid-cols-7 gap-px text-center tabular-nums">
+        {cells.map((d, i) => {
+          if (d === null) return <span key={i} />;
+          const date = new Date(
+            cursor.getFullYear(),
+            cursor.getMonth(),
+            d,
+          );
+          const badge = getDayBadge(date);
+          const today_ = isThisMonth && d === today.getDate();
+          return (
+            <span
+              key={i}
+              className={cn(
+                'flex min-h-0 flex-col items-center justify-center overflow-hidden rounded leading-none',
+                today_ && 'bg-primary text-primary-foreground',
+              )}
+            >
+              <span className="text-[10px]">{d}</span>
+              <span
+                className={cn(
+                  'w-full truncate text-[8px]',
+                  today_ ? 'opacity-90' : 'text-muted-foreground',
+                )}
+              >
+                {badge}
+              </span>
+            </span>
+          );
+        })}
       </div>
     </div>
   );

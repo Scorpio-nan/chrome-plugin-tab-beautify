@@ -11,6 +11,14 @@ interface WeatherCache {
   code: number;
   isDay: boolean;
   updatedAt: number;
+  humidity?: number;
+  precipitation?: number;
+  pressure?: number;
+  apparent?: number;
+  hours?: { time: string; temp: number; code: number }[];
+  days?: { date: string; min: number; max: number; code: number }[];
+  sunrise?: string;
+  sunset?: string;
 }
 const CACHE_KEY = 'weatherCache';
 const CACHE_TTL = 20 * 60 * 1000;
@@ -23,16 +31,61 @@ async function weatherFetch(lat: number, lon: number) {
     if (cached && Date.now() - cached.updatedAt < CACHE_TTL) {
       return { ok: true, data: cached };
     }
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`;
+    // current 取实况，hourly 取未来 24 小时，daily 取未来 7 天（上游「24小时预报、未来7天预报」）
+    const params = [
+      `latitude=${lat}`,
+      `longitude=${lon}`,
+      'current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,surface_pressure',
+      'hourly=temperature_2m,weather_code',
+      'daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset',
+      'forecast_days=7',
+      'timezone=auto',
+    ].join('&');
+    const url = `https://api.open-meteo.com/v1/forecast?${params}`;
     const res = await fetch(url);
     const data = await res.json();
-    const cw = data?.current_weather;
-    if (!cw) return { ok: false, error: '天气服务暂无数据' };
+    const cur = data?.current;
+    if (!cur) return { ok: false, error: '天气服务暂无数据' };
+
+    // 从整点序列里切出「现在开始」的 24 小时
+    const hourlyTime: string[] = data?.hourly?.time ?? [];
+    const hourlyTemp: number[] = data?.hourly?.temperature_2m ?? [];
+    const hourlyCode: number[] = data?.hourly?.weather_code ?? [];
+    const stamp = String(cur.time ?? '').slice(0, 13);
+    let start = hourlyTime.findIndex((t) => t.slice(0, 13) >= stamp);
+    if (start < 0) start = 0;
+    const hours = hourlyTime
+      .slice(start, start + 24)
+      .map((time, i) => ({
+        time,
+        temp: hourlyTemp[start + i],
+        code: hourlyCode[start + i],
+      }))
+      .filter((h) => typeof h.temp === 'number');
+
+    const daily = data?.daily;
+    const days = Array.isArray(daily?.time)
+      ? (daily.time as string[]).map((date, i) => ({
+          date,
+          min: daily.temperature_2m_min?.[i],
+          max: daily.temperature_2m_max?.[i],
+          code: daily.weather_code?.[i],
+        }))
+      : [];
+
     const out: WeatherCache = {
-      temp: cw.temperature,
-      windSpeed: cw.windspeed,
-      code: cw.weathercode,
-      isDay: cw.is_day === 1,
+      temp: cur.temperature_2m,
+      windSpeed: cur.wind_speed_10m,
+      code: cur.weather_code,
+      isDay: cur.is_day === 1,
+      humidity: cur.relative_humidity_2m,
+      precipitation: cur.precipitation,
+      pressure: cur.surface_pressure,
+      apparent: cur.apparent_temperature,
+      hours,
+      days,
+      sunrise: String(daily?.sunrise?.[0] ?? '').slice(11, 16),
+      sunset: String(daily?.sunset?.[0] ?? '').slice(11, 16),
       updatedAt: Date.now(),
     };
     void browser.storage.local.set({ [CACHE_KEY]: out });
@@ -54,6 +107,37 @@ async function geocode(city: string) {
       ok: true,
       data: { lat: hit.latitude, lon: hit.longitude, name: hit.name },
     };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * 热搜/资讯数据源（F25/F36）：地址由用户在磁贴里填，可能是任意站点，
+ * 所以走可选主机权限：拿到权限才 fetch，拿不到就明确回错，由组件提示去授权。
+ */
+async function trendingFetch(rawUrl: string) {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return { ok: false, error: '数据源必须是 http(s) 地址' };
+    }
+    const origin = url.origin + '/*';
+    const perm = { origins: [origin] } as unknown as Parameters<
+      typeof browser.permissions.contains
+    >[0];
+    const has = await browser.permissions.contains(perm);
+    if (!has) return { ok: false, error: 'needs-origin' };
+
+    const res = await fetch(url.toString(), { cache: 'no-store' });
+    if (!res.ok) return { ok: false, error: 'HTTP ' + res.status };
+    const text = await res.text();
+    if (text.length > 2_000_000) return { ok: false, error: '返回内容过大' };
+    try {
+      return { ok: true, data: JSON.parse(text) };
+    } catch {
+      return { ok: false, error: '数据源不是 JSON' };
+    }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
@@ -168,6 +252,8 @@ export default defineBackground(() => {
         return weatherFetch(Number(msg.lat), Number(msg.lon));
       case 'weather:geocode':
         return geocode(String(msg.city));
+      case 'trending:fetch':
+        return trendingFetch(String(msg.url));
       case 'tile:add':
         return addTileToCurrentPage(
           String(msg.url),

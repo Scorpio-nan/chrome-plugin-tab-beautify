@@ -295,3 +295,18 @@
     animation: none;
   }
 }
+
+/* 便签（contentEditable）空的时候显示占位文字：::before 才能取到 data-placeholder */
+.note-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-muted-foreground, rgb(255 255 255 / 45%));
+  pointer-events: none;
+}
+
+/* 富文本里换行/连续空行不要塌掉 */
+.note-editor {
+  word-break: break-word;
+}
+.note-editor:focus {
+  outline: none;
+}

@@ -28,7 +28,7 @@ import {
 } from '@/lib/dynamic-wallpapers';
 import { useConfig } from '@/lib/hooks';
 import { setBgImage } from '@/lib/storage';
-import type { BackgroundStyle } from '@/lib/types';
+import type { BackgroundStyle, WallpaperRotateSource } from '@/lib/types';
 import { BG_PRESETS } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import {
@@ -503,6 +503,39 @@ export default function WallpaperPane() {
                 suffix=" px"
                 onChange={(v) => update({ blur: v })}
               />
+              <div className="h-px bg-border" />
+              <p className="text-xs font-medium text-muted-foreground">自动切换壁纸</p>
+              <Segmented
+                value={config.wallpaperRotate ? 'on' : 'off'}
+                options={[
+                  { id: 'off', label: '关闭' },
+                  { id: 'on', label: '开启' },
+                ]}
+                onChange={(v) => update({ wallpaperRotate: v === 'on' })}
+              />
+              {config.wallpaperRotate && (
+                <>
+                  <Slider
+                    label="切换间隔"
+                    value={config.wallpaperRotateMinutes}
+                    min={1}
+                    max={120}
+                    suffix=" 分钟"
+                    onChange={(v) => update({ wallpaperRotateMinutes: v })}
+                  />
+                  <Segmented
+                    value={config.wallpaperRotateSource}
+                    options={[
+                      { id: 'presets' as WallpaperRotateSource, label: '系统精选' },
+                      { id: 'recent' as WallpaperRotateSource, label: '最近使用' },
+                    ]}
+                    onChange={(v) => update({ wallpaperRotateSource: v })}
+                  />
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    到点自动换一张；「最近使用」只在你用过的壁纸里轮换。
+                  </p>
+                </>
+              )}
             </div>
           )}
 
