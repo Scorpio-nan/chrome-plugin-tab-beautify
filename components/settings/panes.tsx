@@ -476,16 +476,6 @@ export function GeneralPane() {
 
       <Section title="主页" hint="问候语与天气">
         <Toggle
-          label="显示常访栏"
-          checked={config.showFrequent}
-          onChange={(v) => update({ showFrequent: v })}
-        />
-        <Toggle
-          label="固定常访到侧边栏"
-          checked={config.frequentInSidebar}
-          onChange={(v) => update({ frequentInSidebar: v })}
-        />
-        <Toggle
           label="显示底部栏"
           checked={config.showBottomBar}
           onChange={(v) => update({ showBottomBar: v })}

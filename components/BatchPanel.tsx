@@ -1,6 +1,4 @@
-// 批量操作（上游 F15）：把当前页的磁贴列出来勾选，然后批量删除 / 移动到别的页 / 加进常访栏。
-//
-// 上游限制「批量添加到桌面不能超过 20 个」，这里对「加入常访栏」沿用同一条上限。
+// 批量操作（上游 F15）：把当前页的磁贴列出来勾选，然后批量删除 / 批量移动到别的页。
 import { useEffect, useMemo, useState } from 'react';
 
 import TileIcon from '@/components/TileIcon';
@@ -16,8 +14,6 @@ import type { PageOption } from '@/lib/nav';
 import type { Tile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-export const BATCH_LIMIT = 20;
-
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,7 +23,6 @@ interface Props {
   currentPageId: string;
   onRemove: (ids: string[]) => void;
   onMove: (ids: string[], groupId: string, pageId: string) => void;
-  onAddFrequent: (ids: string[]) => void;
 }
 
 function iconOf(tile: Tile): { icon: React.ComponentProps<typeof TileIcon>['icon'] } {
@@ -49,7 +44,6 @@ export default function BatchPanel({
   currentPageId,
   onRemove,
   onMove,
-  onAddFrequent,
 }: Props) {
   const [picked, setPicked] = useState<string[]>([]);
   const [target, setTarget] = useState('');
@@ -84,8 +78,7 @@ export default function BatchPanel({
         <DialogHeader>
           <DialogTitle>批量操作</DialogTitle>
           <DialogDescription>
-            本页共 {tiles.length} 个磁贴 · 已选 {picked.length} 个 ·
-            批量加入常访栏最多 {BATCH_LIMIT} 个
+            本页共 {tiles.length} 个磁贴 · 已选 {picked.length} 个
           </DialogDescription>
         </DialogHeader>
 
@@ -136,18 +129,6 @@ export default function BatchPanel({
             }}
           >
             移动
-          </Button>
-
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={picked.length === 0}
-            onClick={() => {
-              onAddFrequent(picked.slice(0, BATCH_LIMIT));
-              settled();
-            }}
-          >
-            加入常访栏
           </Button>
 
           <Button

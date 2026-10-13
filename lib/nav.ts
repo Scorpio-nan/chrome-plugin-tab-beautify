@@ -235,9 +235,6 @@ export function mergeNav(partial: unknown): NavState {
     groups,
     activeGroupId,
     activePageByGroup,
-    // 注意：这里给 undefined 而不是 []，好和「用户手动清空常访栏」区分开——
-    // 空数组是用户的选择，undefined 才是「老数据，需要兜底填充」。
-    frequent: Array.isArray(raw.frequent) ? raw.frequent : undefined,
   };
 }
 
@@ -262,10 +259,10 @@ async function migrateLegacy(): Promise<NavState | null> {
 
 export async function getNav(): Promise<NavState> {
   const r = await browser.storage.local.get(NAV_KEY);
-  if (r[NAV_KEY]) return ensureFrequent(mergeNav(r[NAV_KEY]));
+  if (r[NAV_KEY]) return mergeNav(r[NAV_KEY]);
 
   const migrated = await migrateLegacy();
-  const nav = ensureFrequent(migrated ?? defaultNav());
+  const nav = migrated ?? defaultNav();
   await browser.storage.local.set({ [NAV_KEY]: nav });
   return nav;
 }
@@ -761,69 +758,6 @@ export interface IconEntry {
   pageIcon: string;
   /** 折叠在哪个文件夹里；顶级图标没有这个字段 */
   folderTitle?: string;
-}
-
-/* ---------- 常访栏（搜索框下面那条常用网站） ---------- */
-
-/** 常访栏最多几条 */
-export const FREQUENT_MAX = 10;
-
-/** 把整棵树里的链接摊平（文件夹子图标也算），按网址去重 */
-export function listAllLinks(nav: NavState): LinkTile[] {
-  const out: LinkTile[] = [];
-  const seen = new Set<string>();
-  for (const g of nav.groups) {
-    for (const p of g.pages) {
-      for (const t of p.tiles) {
-        const links =
-          t.type === 'link' ? [t] : t.type === 'folder' ? t.children : [];
-        for (const l of links) {
-          if (seen.has(l.url)) continue;
-          seen.add(l.url);
-          out.push(l);
-        }
-      }
-    }
-  }
-  return out;
-}
-
-/** 常访栏为空时，用树里的前几个链接兜底，用户一进来就有内容 */
-export function defaultFrequent(nav: NavState, limit = FREQUENT_MAX): LinkTile[] {
-  return listAllLinks(nav).slice(0, limit);
-}
-
-/** 读盘后补齐常访栏（老数据没有这个字段） */
-export function ensureFrequent(nav: NavState): NavState {
-  if (nav.frequent) return nav;
-  return { ...nav, frequent: defaultFrequent(nav) };
-}
-
-/** 加进常访栏：同网址只留一条，新加的顶到最前面 */
-export function addFrequent(nav: NavState, tile: LinkTile): NavState {
-  const rest = (nav.frequent ?? []).filter((x) => x.url !== tile.url);
-  return {
-    ...nav,
-    frequent: [{ ...tile, id: uid() }, ...rest].slice(0, FREQUENT_MAX),
-  };
-}
-
-export function removeFrequent(nav: NavState, id: string): NavState {
-  return { ...nav, frequent: (nav.frequent ?? []).filter((x) => x.id !== id) };
-}
-
-/** 编辑模式下左移 / 右移一格 */
-export function moveFrequent(
-  nav: NavState,
-  id: string,
-  delta: -1 | 1,
-): NavState {
-  const list = [...(nav.frequent ?? [])];
-  const i = list.findIndex((x) => x.id === id);
-  const j = i + delta;
-  if (i < 0 || j < 0 || j >= list.length) return nav;
-  [list[i], list[j]] = [list[j], list[i]];
-  return { ...nav, frequent: list };
 }
 
 /* ---------- 一键整理布局 / 批量操作（F09 · F15） ---------- */

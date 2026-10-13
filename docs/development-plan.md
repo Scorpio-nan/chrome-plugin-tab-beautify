@@ -30,7 +30,7 @@
 | F05 | 搜索框 | ✅ | 保持 | – |  |
 | F06 | 图标网格 | ✅ | 保持 | – |  |
 | F07 | 文件夹与停留合并 | ✅ | 保持 | – |  |
-| F08 | 常访栏 | ✅ | 页面常访条 + 「固定常访到侧边栏 / 从侧边栏隐藏」都已实现 | – |  |
+| F08 | 常访栏 | ❌ | 不需要（2026-10-12 用户确认）：实现后已按要求整块移除，含侧边栏固定与批量入口 | – |  |
 | F09 | 底部栏 / 一键整理布局 | ✅ | `components/BottomBar.tsx` + `lib/nav.ts` 的 `tileWeight/autoArrange`；`config.showBottomBar`、`config.layoutPriority`；右键菜单也有一键整理 | – |  |
 | F10 | 侧边栏 | ✅ | 保持 | – |  |
 | F11 | 编辑主页模式 | ✅ | 保持 | – |  |
@@ -112,6 +112,7 @@
 | 2026-10-12 | F08 常访栏（页面部分） | `NavState.frequent` + `lib/nav.ts` 的 `listAllLinks/defaultFrequent/ensureFrequent/addFrequent/removeFrequent/moveFrequent/FREQUENT_MAX`；新组件 `components/FrequentBar.tsx`；`IconSearch` 增加 `onPick` 复用为挑选器；内容区右键菜单加「显示/隐藏常访栏」「编辑常访栏」「添加常访图标」；设置 → 主页加「显示常访栏」；`npm run compile` 与 `npm run build` 均通过 |
 | 2026-10-12 | 全模块自检 + 补齐（第二轮） | 逐条核对 F01–F57 的实现现状，修掉 4 处「看着有、其实不完整」的问题，见下方第 7 节；`npm run compile` 与 `npm run build` 均通过 |
 | 2026-10-12 | 剩余模块（第三轮） | F09 底部栏/一键整理、F15 批量操作、F24 历史记录、F25/F36 热搜资讯、F28 换算器、F29 计算器、F31 纪念日、F32 番茄钟、F33 喝水、F46 思维导图、F55 更新日志；便签升级为富文本（F22 的非 AI 部分）。`npm run compile` 与 `npm run build` 均通过（产物 2.62 MB） |
+| 2026-10-12 | 第四轮 | ① 按用户要求移除常访栏（F08）全部代码；② 翻页重做成 **阈值触发的整页滑动**：滚轮位移累计到阈值后直接翻一页（150ms 滑出 + 210ms 滑入），翻页期间忽略新的滚轮输入；页内内容先滚到底才开始累计（releaseOnEdges）；停手 0.7s 清空累计；`prefers-reduced-motion` 下直接切换；`pageSensitivity` = 阈值（默认 41 → 约 200px，两格滚轮） |
 
 ## 7. 全模块自检结果（2026-10-12）
 

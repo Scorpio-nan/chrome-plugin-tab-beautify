@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 
 import EmojiGrid from '@/components/nav/EmojiGrid';
-import TileIcon from '@/components/TileIcon';
 import ContextMenu, { type MenuItem } from '@/components/ui/context-menu';
 import {
   addGroup,
@@ -30,7 +29,7 @@ import {
   updateGroup,
   updatePage,
 } from '@/lib/nav';
-import type { LinkTile, NavState } from '@/lib/types';
+import type { NavState } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type Level = 'group' | 'page';
@@ -55,8 +54,6 @@ interface Props {
   onOpenSettings: () => void;
   /** 头像里显示的字，取用户名首字母 */
   initial?: string;
-  /** 「固定到侧边栏」的常访栏内容；空数组 = 不显示（= 从侧边栏隐藏） */
-  frequent?: LinkTile[];
 }
 
 /** 分组题头：小字号 + 字距，模仿系统设置里的那种 section caption */
@@ -75,7 +72,6 @@ export default function Sidebar({
   onToggleCollapsed,
   onOpenSettings,
   initial = 'U',
-  frequent = [],
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [editing, setEditing] = useState<{
@@ -418,33 +414,6 @@ export default function Sidebar({
                 )),
               )}
               {addRow('新建页面', () => update((n) => addPage(n, group.id)))}
-
-              {/* 常访栏固定到侧边栏时显示（关闭即「从侧边栏隐藏」） */}
-              {frequent.length > 0 && (
-                <>
-                  <Caption>常访</Caption>
-                  {frequent.map((f) => (
-                    <a
-                      key={f.id}
-                      href={f.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={f.url}
-                      className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                    >
-                      <span className="grid size-5 shrink-0 place-items-center overflow-hidden rounded">
-                        <TileIcon
-                          icon={f.icon}
-                          title={f.title}
-                          url={f.url}
-                          glyphClass="text-xs"
-                        />
-                      </span>
-                      <span className="min-w-0 truncate">{f.title}</span>
-                    </a>
-                  ))}
-                </>
-              )}
             </>
           )}
         </nav>

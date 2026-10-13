@@ -80,11 +80,6 @@ export interface NavState {
   activeGroupId: string;
   /** 每个分组各自记住停在第几页 */
   activePageByGroup: Record<string, string>;
-  /**
-   * 常访栏：搜索框下面那条常用网站。
-   * 可选字段——老数据里没有，读盘时由 ensureFrequent() 用树里的链接补上。
-   */
-  frequent?: LinkTile[];
 }
 
 /* ---------- 小组件 ---------- */
@@ -162,10 +157,6 @@ export interface UserConfig {
   hideAddTile: boolean;
   /** 隐藏图标名称，只留方块 */
   hideTileLabel: boolean;
-  /** 显示搜索框下面的「常访栏」 */
-  showFrequent: boolean;
-  /** 把常访栏固定到侧边栏（上游「固定到侧边栏 / 从侧边栏隐藏」） */
-  frequentInSidebar: boolean;
   /** 显示内容区底部的控制栏（上游「底部栏」） */
   showBottomBar: boolean;
   /** 一键整理布局的排序策略：布局优先 / 大小优先 */
@@ -230,8 +221,6 @@ export const DEFAULT_CONFIG: UserConfig = {
   tileSize: 'md',
   hideAddTile: false,
   hideTileLabel: false,
-  showFrequent: true,
-  frequentInSidebar: false,
   showBottomBar: true,
   layoutPriority: 'layout',
   scrollPaging: true,

@@ -24,7 +24,6 @@ import AddTileDrawer from '@/components/drawer/AddTileDrawer';
 import BatchPanel from '@/components/BatchPanel';
 import BottomBar from '@/components/BottomBar';
 import ContextMenu, { type MenuItem } from '@/components/ui/context-menu';
-import FrequentBar from '@/components/FrequentBar';
 import IconSearch from '@/components/IconSearch';
 import SearchBar from '@/components/SearchBar';
 import {
@@ -37,21 +36,17 @@ import TileGrid, { type DropSide } from '@/components/grid/TileGrid';
 import WallpaperLayer from '@/components/WallpaperLayer';
 import {
   addChildToFolder,
-  addFrequent,
   autoArrange,
   collectIconKeys,
   currentPage,
   findTile,
   foldIntoFolder,
-  FREQUENT_MAX,
   listLinkIcons,
   listPages,
-  moveFrequent,
   moveTilesToPage,
   moveTile,
   moveTileToPage,
   releaseFolder,
-  removeFrequent,
   removeTiles,
   removeTile,
   reorderChild,
@@ -102,9 +97,6 @@ export default function App() {
   /** 页面级「编辑主页」模式 */
   const [homeEdit, setHomeEdit] = useState(false);
   const [iconSearch, setIconSearch] = useState(false);
-  /** 常访栏：编辑模式 + 「添加常访图标」的挑选浮层 */
-  const [frequentEdit, setFrequentEdit] = useState(false);
-  const [frequentPick, setFrequentPick] = useState(false);
   /** 批量操作面板（底部栏 / 右键菜单进入） */
   const [batchOpen, setBatchOpen] = useState(false);
   /** 内容区空白处右键弹的菜单 */
@@ -197,43 +189,98 @@ export default function App() {
    * pageSensitivity 越大越灵敏（阈值越小），和设置里那条滑杆语义一致。
    */
   const scroller = useRef<HTMLDivElement | null>(null);
-  const fling = useRef({ delta: 0, at: 0, lock: 0 });
+  /** 内容块：翻页动画直接改它的 transform，不走 state（wheel 事件太密，走 state 会掉帧） */
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const pager = useRef({ delta: 0, at: 0, lock: 0, busy: false, y: 0 });
+
+  const stillMotion = () =>
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+  const setContentY = (y: number, ms: number) => {
+    const el = contentRef.current;
+    if (!el) return;
+    // 没有动画且位置没变就别写样式：正常滚动时 wheel 事件很密，省掉这些无谓的重排
+    if (ms === 0 && Math.abs(y - pager.current.y) < 0.5) return;
+    pager.current.y = y;
+    el.style.transition = ms
+      ? `transform ${ms}ms cubic-bezier(.32,.72,0,1)`
+      : 'none';
+    el.style.transform = `translateY(${y.toFixed(1)}px)`;
+  };
 
   const onContentWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     markScrolling();
     if (!config.scrollPaging || !group || pages.length < 2) return;
+    if (pager.current.busy) return;
     const el = scroller.current;
     if (!el) return;
 
-    const atTop = el.scrollTop <= 0;
-    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-    // 只有贴边且方向朝外才累计，中间那段老老实实滚内容
-    const edge = (e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom);
-    if (!edge) {
-      fling.current.delta = 0;
+    const dir = e.deltaY < 0 ? -1 : 1;
+
+    // 页里内容比屏幕长时，先在页内滚；滚到头再整页切换（Swiper 的 releaseOnEdges 行为）
+    const canScrollInner =
+      dir === 1
+        ? el.scrollTop + el.clientHeight < el.scrollHeight - 1
+        : el.scrollTop > 0;
+    if (canScrollInner) {
+      pager.current.delta = 0;
+      setContentY(0, 140);
       return;
     }
+
+    // 阈值触发：滚轮位移一直累计，够了才整页翻一次（Swiper 的 thresholdDelta 思路）
     const now = Date.now();
-    if (now - fling.current.at > 700) fling.current.delta = 0;
-    fling.current.at = now;
-    fling.current.delta += e.deltaY;
+    // 停手超过 700ms 才清空累计：慢慢滚两格也要能翻，但不能把几分钟前的滚动算进来
+    if (now - pager.current.at > 700) pager.current.delta = 0;
+    pager.current.at = now;
+    pager.current.delta += e.deltaY;
 
-    const threshold = Math.max(120, 1500 - config.pageSensitivity * 13);
-    if (Math.abs(fling.current.delta) < threshold || now < fling.current.lock) {
+    // 灵敏度 1–100：越大阈值越小（默认 41 → 约 200px，约两格滚轮；
+    // 拉到最右 ≈ 不到一格，拉到最左 ≈ 五格）
+    const threshold = Math.max(80, 480 - config.pageSensitivity * 6.8);
+    if (Math.abs(pager.current.delta) < threshold || now < pager.current.lock) {
       return;
     }
-    fling.current.delta = 0;
-    fling.current.lock = now + 450;
+    pager.current.delta = 0;
 
-    const to = pages.findIndex((p) => p.id === activePageId) + (e.deltaY > 0 ? 1 : -1);
-    if (to < 0 || to >= pages.length) return;
+    const to = pages.findIndex((p) => p.id === activePageId) + dir;
+    if (to < 0 || to >= pages.length) {
+      // 已经是第一页 / 最后一页：轻轻顶一下再弹回，告诉用户「到头了」
+      setContentY(-dir * 16, 0);
+      window.setTimeout(() => setContentY(0, 180), 0);
+      return;
+    }
     const next = pages[to];
-    updateNav((n) => setActivePage(n, group.id, next.id));
+
+    if (stillMotion()) {
+      updateNav((n) => setActivePage(n, group.id, next.id));
+      show(next.title);
+      return;
+    }
+
+    const dist = Math.min(el.clientHeight || 420, 620);
+    pager.current.busy = true;
+    pager.current.lock = now + 360;
+
+    // 整页滑动：旧页滑出（150ms）→ 换页 → 新页滑入（210ms），合成一次连贯的 360ms 切换
+    setContentY(-dir * dist, 150);
+    window.setTimeout(() => {
+      updateNav((n) => setActivePage(n, group.id, next.id));
+      scroller.current?.scrollTo({ top: 0 });
+      setContentY(dir * dist, 0);
+      window.requestAnimationFrame(() => {
+        setContentY(0, 210);
+        window.setTimeout(() => {
+          pager.current.busy = false;
+        }, 230);
+      });
+    }, 150);
     show(next.title);
   };
 
-  /** 换页后回到顶部，别把上一页的滚动位置带过去 */
+  /** 换页后回到顶部，别把上一页的滚动位置带过去；翻页动画进行中不要插手 */
   useEffect(() => {
+    if (!pager.current.busy) setContentY(0, 0);
     scroller.current?.scrollTo({ top: 0 });
   }, [activePageId]);
 
@@ -424,19 +471,6 @@ export default function App() {
     show('已移动 ' + movable.length + ' 个磁贴');
   };
 
-  const batchAddFrequent = (ids: string[]) => {
-    const links =
-      page?.tiles.filter(
-        (t): t is LinkTile => t.type === 'link' && ids.includes(t.id),
-      ) ?? [];
-    if (links.length === 0) {
-      show('选的磁贴里没有链接，只有链接能加进常访栏');
-      return;
-    }
-    updateNav((n) => links.reduce((acc, l) => addFrequent(acc, l), n));
-    show('已把 ' + links.length + ' 个图标加入常访栏');
-  };
-
   /* ---------- 内容区右键菜单 ---------- */
 
   const onPageContextMenu = (e: React.MouseEvent) => {
@@ -491,38 +525,6 @@ export default function App() {
       label: '搜索图标',
       icon: <Search className="size-4" />,
       onSelect: () => setIconSearch(true),
-    },
-    /* 常访栏：显示 / 隐藏、编辑、往里加图标 */
-    {
-      id: 'toggle-frequent',
-      label: config.showFrequent ? '隐藏常访栏' : '显示常访栏',
-      separatorBefore: true,
-      icon: <LayoutGrid className="size-4" />,
-      onSelect: () => {
-        update({ showFrequent: !config.showFrequent });
-        show(config.showFrequent ? '已隐藏常访栏' : '已显示常访栏');
-      },
-    },
-    {
-      id: 'edit-frequent',
-      label: frequentEdit ? '完成编辑常访栏' : '编辑常访栏',
-      icon: frequentEdit ? <Check className="size-4" /> : <Pencil className="size-4" />,
-      onSelect: () => setFrequentEdit((v) => !v),
-    },
-    {
-      id: 'add-frequent',
-      label: '添加常访图标',
-      icon: <Plus className="size-4" />,
-      onSelect: () => setFrequentPick(true),
-    },
-    {
-      id: 'pin-frequent',
-      label: config.frequentInSidebar ? '从侧边栏隐藏常访' : '固定常访到侧边栏',
-      icon: <Check className="size-4" />,
-      onSelect: () => {
-        update({ frequentInSidebar: !config.frequentInSidebar });
-        show(config.frequentInSidebar ? '已从侧边栏隐藏常访' : '已固定到侧边栏');
-      },
     },
     /* 底部栏与批量操作 */
     {
@@ -611,7 +613,6 @@ export default function App() {
               }
               onOpenSettings={() => setSettingsOpen(true)}
               initial={(config.userName || 'W').slice(0, 1).toUpperCase()}
-              frequent={config.frequentInSidebar ? (nav.frequent ?? []) : []}
             />
           </div>
         )}
@@ -641,22 +642,6 @@ export default function App() {
             )}
           </div>
 
-          {/* 常访栏：搜索框下面那条常用网站（上游 F08） */}
-          {config.showFrequent && (
-            <FrequentBar
-              items={(nav?.frequent ?? []).slice(0, FREQUENT_MAX)}
-              editing={frequentEdit}
-              hideLabel={config.hideTileLabel}
-              maxWidth={config.iconAreaWidth}
-              onOpen={(item) => {
-                if (config.tileOpenMode === 'selfTab') window.location.href = item.url;
-                else window.open(item.url, '_blank', 'noopener');
-              }}
-              onRemove={(id) => updateNav((n) => removeFrequent(n, id))}
-              onMove={(id, d) => updateNav((n) => moveFrequent(n, id, d))}
-            />
-          )}
-
           {/* 主内容区永远只有竖向滚动；滚到边界继续滚 = 翻页 */}
           <div
             ref={scroller}
@@ -665,6 +650,7 @@ export default function App() {
             onWheel={onContentWheel}
           >
             <div
+              ref={contentRef}
               className="mx-auto w-full"
               style={{
                 maxWidth: config.lockMaxWidth
@@ -741,25 +727,6 @@ export default function App() {
         entries={iconEntries}
       />
 
-      {/* 同一个浮层换个身份：挑一个图标加进常访栏 */}
-      <IconSearch
-        open={frequentPick}
-        onOpenChange={setFrequentPick}
-        entries={iconEntries}
-        onPick={(e) => {
-          updateNav((n) =>
-            addFrequent(n, {
-              id: uid(),
-              type: 'link',
-              title: e.title,
-              url: e.url,
-              icon: e.icon,
-            }),
-          );
-          show('已把「' + e.title + '」加入常访栏');
-        }}
-      />
-
       <BatchPanel
         open={batchOpen}
         onOpenChange={setBatchOpen}
@@ -768,7 +735,6 @@ export default function App() {
         currentPageId={page?.id ?? ''}
         onRemove={batchRemove}
         onMove={batchMove}
-        onAddFrequent={batchAddFrequent}
       />
 
       {/* 设置浮层贴在侧栏一侧，别让胶囊被盖住 */}
